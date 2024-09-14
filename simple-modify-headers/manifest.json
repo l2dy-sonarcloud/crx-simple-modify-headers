@@ -26,7 +26,7 @@
   ],
   "applications": {
     "gecko": {
-      "id": "{f6ca2dfb-43a6-4334-9fad-8d5a71a1fe67}",
+      "id": "crx-simple-modify-headers@warren-bank.github.io",
       "strict_min_version": "42.0"
     }
   },
