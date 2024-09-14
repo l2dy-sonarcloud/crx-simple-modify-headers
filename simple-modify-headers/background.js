@@ -175,6 +175,59 @@ function storeInBrowserStorage(item, callback_function) {
 }
 
 /*
+ * This function set a key-value pair in HTTP header "Cookie",
+ *   and returns the value of HTTP header after modification.
+ * If key already exists, it modify the value.
+ * If key doesn't exist, it add the key-value pair.
+ * If value is undefined, it delete the key-value pair from cookies.
+ *
+ * Assuming that, the same key SHOULD NOT appear twice in cookies.
+ * Also assuming that, all cookies doesn't contains semicolon.
+ *   (99.9% websites are following these rules)
+ *
+ * Example:
+ *   cookie_keyvalues_set("msg=good; user=recolic; password=test", "user", "p")
+ *     => "msg=good; user=p; password=test"
+ *   cookie_keyvalues_set("msg=good; user=recolic; password=test", "time", "night")
+ *     => "msg=good; user=recolic; password=test;time=night"
+ */
+function cookie_keyvalues_set(original_cookies, key, value) {
+  let new_element = key + "=" + value; // not used if value is undefined.
+  let cookies_ar = original_cookies.split(";").filter(e => e.trim().length > 0);
+  let selected_cookie_index = cookies_ar.findIndex(kv => kv.trim().startsWith(key+"="));
+  if (selected_cookie_index == -1) {
+    if (value !== undefined)
+      cookies_ar.push(new_element);
+  }
+  else {
+    if (value === undefined)
+      cookies_ar.splice(selected_cookie_index, 1);
+    else
+      cookies_ar.splice(selected_cookie_index, 1, new_element);
+  }
+  return cookies_ar.join(";");
+}
+
+/*
+ * This function modify the HTTP response header "Set-Cookie",
+ *   and replace the value of its cookie, to some new_value.
+ * If key doesn't match original_set_cookie_header_content, new key is used in result.
+ *
+ * Example:
+ *   set_cookie_modify_cookie_value("token=123; path=/; expires=Sat, 30 Oct 2021 17:57:32 GMT; secure; HttpOnly", "token", "bar")
+ *     => "token=bar; path=/; expires=Sat, 30 Oct 2021 17:57:32 GMT; secure; HttpOnly"
+ *   set_cookie_modify_cookie_value("  user=recolic", "user", "hacker")
+ *     => "user=hacker"
+ *   set_cookie_modify_cookie_value("user=recolic; path=/; HttpOnly", "token", "bar")
+ *     => "token=bar; path=/; HttpOnly"
+ */
+function set_cookie_modify_cookie_value(original_set_cookie_header_content, key, new_value) {
+  let trimmed = original_set_cookie_header_content.trimStart();
+  let original_attributes = trimmed.indexOf(";") === -1 ? "" : trimmed.substring(trimmed.indexOf(";"))
+  return key + "=" + new_value + original_attributes;
+}
+
+/*
 * Standard function to log messages
 *
 */
@@ -231,6 +284,62 @@ function rewriteHttpHeaders(headers, url, apply_on) {
               if (config.debug_mode) log('Delete ' + headersType + ' header :  name=' + headers[i].name + ' for url ' + url)
               headers.splice(i, 1)
             }
+          }
+        }
+      }
+      else if (to_modify.action === "cookie_add_or_modify") {
+        if (apply_on === 'req') {
+          let header_cookie = headers.find(header => header.name.toLowerCase() === "cookie");
+          let new_cookie = cookie_keyvalues_set(header_cookie === undefined ? "" : header_cookie.value, to_modify.header_name, to_modify.header_value);
+          if (header_cookie === undefined) {
+            headers.push({"name": "Cookie", "value": new_cookie});
+            if (config.debug_mode) log("cookie_add_or_modify.req new_header : name=Cookie,value=" + new_cookie + " for url " + url);
+          }
+          else {
+            header_cookie.value = new_cookie;
+            if (config.debug_mode) log("cookie_add_or_modify.req modify_header : name=Cookie,value=" + new_cookie + " for url " + url);
+          }
+        }
+        else {
+          let header_cookie = headers.find(header => 
+              header.name.toLowerCase() === "set-cookie" && 
+              header.value.toLowerCase().trim().startsWith(to_modify.header_name.toLowerCase()+"=")
+          );
+          let new_header_value = set_cookie_modify_cookie_value(header_cookie === undefined ? "" : header_cookie.value, to_modify.header_name, to_modify.header_value);
+          if (header_cookie === undefined) {
+            log("SimpleModifyHeaders.Warning: you're using cookie_add_or_modify in Response. While adding new cookie in response, this plugin only generates `Set-Cookie: cookie-name=cookie-value `, without ANY additional attributes. Add a `Set-Cookie` header if you need them. ");
+            headers.push({"name": "Set-Cookie", "value": new_header_value});
+            if (config.debug_mode) log("cookie_add_or_modify.resp new_header : name=Cookie,value=" + new_header_value + " for url " + url);
+          }
+          else {
+            header_cookie.value = new_header_value;
+            if (config.debug_mode) log("cookie_add_or_modify.resp modify_header : name=Cookie,value=" + new_header_value + " for url " + url);
+          }
+        }
+      }
+      else if (to_modify.action === "cookie_delete") {
+        if (apply_on === 'req') {
+          let header_cookie = headers.find(header => header.name.toLowerCase() === "cookie");
+          let new_cookie = cookie_keyvalues_set(header_cookie === undefined ? "" : header_cookie.value, to_modify.header_name, undefined);
+          if (header_cookie === undefined) {
+            if (config.debug_mode) log("cookie_delete.req: no cookie header found. doing nothing for url " + url);
+          }
+          else {
+            header_cookie.value = new_cookie;
+            if (config.debug_mode) log("cookie_delete.req modify_header : name=Cookie,value=" + new_cookie + " for url " + url);
+          }
+        }
+        else {
+          let index = headers.findIndex(header => 
+              header.name.toLowerCase() === "set-cookie" && 
+              header.value.toLowerCase().trim().startsWith(to_modify.header_name.toLowerCase()+"=")
+          );
+          if (index === -1) {
+            if (config.debug_mode) log("cookie_delete.resp: no matching set-cookie header. doing nothing for url " + url);
+          }
+          else {
+            headers.splice(index, 1);
+            if (config.debug_mode) log("cookie_delete.resp delete_header : name=" + to_modify.header_name + " for url " + url);
           }
         }
       }
