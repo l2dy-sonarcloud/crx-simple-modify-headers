@@ -1,11 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- *
- * @author didierfred@gmail.com
- */
-
-var started = "off";
+let started = "off";
 
 window.onload = function() {
   document.getElementById('config').addEventListener('click',function (e) {start_config();});
@@ -27,7 +20,7 @@ function storeInBrowserStorage(item,callback_function)  {
 function start_modify() {
   if (started==="off") {
     storeInBrowserStorage({started:'on'},function() {
-      chrome.runtime.sendMessage("on");
+      chrome.runtime.sendMessage({action: 'on'});
       started = "on";
       document.getElementById("start_stop").value = "Stop";
       // if exists reload config tab , to get the start/stop information correct
@@ -36,7 +29,7 @@ function start_modify() {
   }
   else {
     storeInBrowserStorage({started:'off'},function() {
-      chrome.runtime.sendMessage("off");
+      chrome.runtime.sendMessage({action: 'off'});
       started = "off";
       document.getElementById("start_stop").value = "Start";
       // if exists reload config tab , to get the start/stop information correct
@@ -46,7 +39,7 @@ function start_modify() {
 }
 	
 function reloadConfigTab(tabs)  {
-  var config_tab;
+  let config_tab;
   // search for config tab
   for (let tab of tabs)  {
     if (tab.url.startsWith(chrome.extension.getURL(""))) config_tab = tab;
@@ -60,7 +53,7 @@ function start_config()  {
   }
 		
 function loadConfigTab(tabs)  {
-  var config_tab;
+  let config_tab;
   // search for config tab
   for (let tab of tabs)  {
     if (tab.url.startsWith(chrome.extension.getURL(""))) config_tab = tab;

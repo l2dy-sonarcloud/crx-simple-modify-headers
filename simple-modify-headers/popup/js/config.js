@@ -1,90 +1,164 @@
- /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- *
- * @author didierfred@gmail.com
- */
-
-let line_number
+let config
 let started
-let show_comments
+let active_headers_group
+let active_headers
+let line_number
+
+const is_edited = {}
 
 window.onload = function() {
   initConfigurationPage()
+}
+
+window.onbeforeunload = function(e) {
+  if (is_edited.config || is_edited.form) {
+    e.preventDefault()
+    e.returnValue = true
+    return 'Save changes before closing?'
+  }
 }
 
 function initConfigurationPage() {
   initGlobalValue()
 
   // load configuration from local storage
-  loadFromBrowserStorage(['config'], function (result) {
-    const config = JSON.parse(result.config)
+  loadFromBrowserStorage(['config', 'started', 'active_headers_group'], function (result) {
+    try {
+      if (!result.config)
+        throw 0
 
-    if (config.debug_mode)
-      document.getElementById('debug_mode').checked = true
+      config = JSON.parse(result.config)
+    }
+    catch(e) {
+      config = {}
+      is_edited.config = true
+    }
 
-    if (typeof config.show_comments === 'undefined')
-      document.getElementById('show_comments').checked = true
-    else if (config.show_comments)
-      document.getElementById('show_comments').checked = true
-    else
-      show_comments=false
+    if (config.headers === 'undefined') {
+      config.headers = {"default": []}
+      is_edited.config = true
+    }
 
-    for (let to_add of config.headers)
-      appendLine(to_add.url_contains, to_add.action, to_add.header_name, to_add.header_value, to_add.comment, to_add.apply_on, to_add.status)
+    if (config.debug_mode === 'undefined') {
+      config.debug_mode = false
+      is_edited.config = true
+    }
 
-    document.getElementById('save_button').addEventListener(
-      'click',
-      function (e) {saveData()}
-    )
-    document.getElementById('export_button').addEventListener(
-      'click',
-      function (e) {exportData()}
-    )
-    document.getElementById('import_button').addEventListener(
-      'click',
-      function (e) {importData()}
-    )
-    document.getElementById('delete_all_button').addEventListener(
-      'click',
-      function (e) {deleteAllData()}
-    )
-    document.getElementById('parameters_button').addEventListener(
-      'click',
-      function (e) {showParametersScreen()}
-    )
-    document.getElementById('add_button').addEventListener(
-      'click',
-      function (e) {appendLine('','add','','','','req','on')}
-    )
-    document.getElementById('start_img').addEventListener(
-      'click',
-      function (e) {startModify()}
-    )
-    document.getElementById('exit_parameters_screen_button').addEventListener(
-      'click',
-      function (e) {hideParametersScreen()}
-    )
-    document.getElementById('show_comments').addEventListener(
-      'click',
-      function (e) {showCommentsClick()}
-    )
+    if (config.show_comments === 'undefined') {
+      config.show_comments = true
+      is_edited.config = true
+    }
 
-    reshapeTable()
+    started = (result.started === 'on') ? 'on' : 'off'
+    active_headers_group = result.active_headers_group || 'default'
+    active_headers = config.headers[active_headers_group] || []
 
-    loadFromBrowserStorage(['started'], function (result) {
-      started = result.started
-
-      if (started === 'on')
-        document.getElementById('start_img').src = 'img/stop.png'
-    })
+    updateFormFieldValues()
+    updateStartButtonImage()
+    addFormFieldEventListeners()
   })
 }
 
+function updateFormFieldValues() {
+  removeAllRuleSets()
+  removeAllLines()
+
+  for (let name in config.headers)
+    appendRuleSet(name)
+
+  for (let to_add of active_headers)
+    appendLine(to_add.url_contains, to_add.action, to_add.header_name, to_add.header_value, to_add.comment, to_add.apply_on, to_add.status)
+
+  reshapeTable()
+
+  document.getElementById('debug_mode'   ).checked = !!config.debug_mode
+  document.getElementById('show_comments').checked = !!config.show_comments
+  document.getElementById('select_rule_set').value = active_headers_group
+
+  is_edited.form = false
+}
+
+function updateStartButtonImage() {
+  if (started === 'on')
+    document.getElementById('start_img').src = 'img/stop.png'
+  else
+    document.getElementById('start_img').src = 'img/start.png'
+}
+
+function addFormFieldEventListeners() {
+  document.getElementById('save_button').addEventListener(
+    'click',
+    function (e) {saveData()}
+  )
+  document.getElementById('export_button').addEventListener(
+    'click',
+    function (e) {exportData()}
+  )
+  document.getElementById('import_button').addEventListener(
+    'click',
+    function (e) {importData()}
+  )
+  document.getElementById('delete_all_button').addEventListener(
+    'click',
+    function (e) {deleteAllData()}
+  )
+  document.getElementById('parameters_button').addEventListener(
+    'click',
+    function (e) {showParametersScreen()}
+  )
+  document.getElementById('select_rule_set').addEventListener(
+    'change',
+    function (e) {changeRuleSet()}
+  )
+  document.getElementById('add_rule_set_button').addEventListener(
+    'click',
+    function (e) {addRuleSet()}
+  )
+  document.getElementById('add_line_button').addEventListener(
+    'click',
+    function (e) {appendLine('','add','','','','req','on')}
+  )
+  document.getElementById('start_img').addEventListener(
+    'click',
+    function (e) {toggleStartButton()}
+  )
+  document.getElementById('exit_parameters_screen_button').addEventListener(
+    'click',
+    function (e) {hideParametersScreen()}
+  )
+  document.getElementById('debug_mode').addEventListener(
+    'click',
+    function (e) {showDebugLogsClick()}
+  )
+  document.getElementById('show_comments').addEventListener(
+    'click',
+    function (e) {showCommentsClick()}
+  )
+  document.getElementById('config_form').addEventListener(
+    'submit',
+    function (e) {e.preventDefault()},
+    true
+  )
+  document.getElementById('config_form').addEventListener(
+    'click',
+    function (e) {if ((e.target.tagName === 'BUTTON') || (e.target.parentElement.tagName === 'BUTTON')) is_edited.form = true},
+    true
+  )
+  document.getElementById('config_form').addEventListener(
+    'input',
+    function (e) {is_edited.form = true}
+  )
+}
+
 function initGlobalValue() {
-  line_number   = 1
-  started       = 'off'
-  show_comments = true
+  config               = {}
+  started              = 'off'
+  active_headers_group = 'default'
+  active_headers       = []
+  line_number          = 1
+
+  is_edited.config     = false
+  is_edited.form       = false
 }
 
 function loadFromBrowserStorage(item,callback_function) {
@@ -111,15 +185,26 @@ function hideParametersScreen() {
   document.getElementById('parameters_screen').hidden = true
 }
 
+function showDebugLogsClick() {
+  config.debug_mode = !!document.getElementById('debug_mode').checked
+  is_edited.config = true
+}
+
 function showCommentsClick() {
-  show_comments = document.getElementById('show_comments').checked
-    ? true
-    : false
+  config.show_comments = !!document.getElementById('show_comments').checked
 
   reshapeTable()
 }
 
 /** END PARAMETERS SCREEN MANAGEMENT **/
+
+function appendRuleSet(name) {
+  const option = document.createElement('option')
+  option.value = name
+  option.textContent = name
+
+  document.getElementById('select_rule_set').appendChild(option)
+}
 
 /**
 * Add a new configuration line on the UI
@@ -148,7 +233,7 @@ function appendLine(url_contains,action,header_name,header_value,comment,apply_o
     <td>
       <input class="form-control" id="header_value${line_number}" />
     </td>
-    <td${show_comments ? '' : ' hidden'}>
+    <td${config.show_comments ? '' : ' hidden'}>
       <input class="form-control" id="comment${line_number}" />
     </td>
     <td width="0">
@@ -221,6 +306,23 @@ function appendLine(url_contains,action,header_name,header_value,comment,apply_o
   line_number++
 }
 
+function removeAllRuleSets() {
+  removeAllChildren(document.getElementById('select_rule_set'))
+}
+
+function removeAllLines() {
+  removeAllChildren(document.getElementById('config_tab'))
+  line_number = 1
+}
+
+function removeAllChildren(node) {
+  if (node && (node instanceof Node)) {
+    while(node.childNodes.length) {
+      node.removeChild(node.childNodes[0])
+    }
+  }
+}
+
 /** ACTIVATE BUTTON MANAGEMENT **/
 
 function setButtonStatus(button,status) {
@@ -257,20 +359,21 @@ function reshapeTable() {
   const tr_elements = document.querySelectorAll('#config_tab tr')
 
   for (let i=0; i < tr_elements.length; i++) {
-    tr_elements[i].children[4].hidden = (!show_comments)
+    tr_elements[i].children[4].hidden = (!config.show_comments)
   }
-  th_elements[4].hidden = (!show_comments)
+  th_elements[4].hidden = (!config.show_comments)
 }
 
 /**
 * Create a JSON String representing the configuration data
 *
+* throws Error for invalid regex
 **/
-function create_configuration_data() {
-  const tr_elements = document.querySelectorAll('#config_tab tr')
+function updateConfig() {
+  if (!is_edited.form) return
+
   const headers     = []
-  let debug_mode    = false
-  let show_comments = false
+  const tr_elements = document.querySelectorAll('#config_tab tr')
 
   for (let i=0; i < tr_elements.length; i++) {
     const url_contains = tr_elements[i].children[0].children[0].value.trim()
@@ -299,13 +402,24 @@ function create_configuration_data() {
     })
   }
 
-  if (document.getElementById('debug_mode').checked)
-    debug_mode = true
-  if (document.getElementById('show_comments').checked)
-    show_comments = true
+  active_headers = headers
+  config.headers[active_headers_group] = active_headers
 
-  const to_export = {headers, debug_mode, show_comments}
-  return JSON.stringify(to_export, null, 2)
+  is_edited.config = true
+  is_edited.form = false
+}
+
+// return TRUE when invalid regex Error occurs
+function askToUpdateConfig() {
+  if (is_edited.form && window.confirm('Keep unsaved changes to current rule set?')) {
+    try {
+      updateConfig()
+    }
+    catch(error) {
+      alert(error.message)
+      return true
+    }
+  }
 }
 
 /**
@@ -328,13 +442,11 @@ function isRegExpValid(source) {
 **/
 function saveData() {
   try {
-    const config = create_configuration_data()
-    storeConfiguration(config, false)
-    return true
+    updateConfig()
+    storeConfiguration()
   }
   catch(error) {
     alert(error.message)
-    return false
   }
 }
 
@@ -343,14 +455,7 @@ function saveData() {
 *
 **/
 function exportData() {
-  let to_export
-  try {
-    to_export = create_configuration_data()
-  }
-  catch(error) {
-    alert(error.message)
-    return
-  }
+  const to_export = JSON.stringify(config, null, 2)
 
   // Create file to save
   const a    = document.createElement('a')
@@ -403,26 +508,93 @@ function importDataCallback(e) {
 *
 **/
 function deleteAllData() {
-  if (window.confirm('Delete All Lines?')) {
-    try {
-      const headers     = []
-      let debug_mode    = false
-      let show_comments = false
+  const options = []
 
-      if (document.getElementById('debug_mode').checked)
-        debug_mode = true
-      if (document.getElementById('show_comments').checked)
-        show_comments = true
+  if (Object.keys(config.headers).length > 1)
+    options.push({mode: 'all-rule-sets', text: 'All rule sets'})
+  if (active_headers_group !== 'default')
+    options.push({mode: 'current-rule-set', text: 'Current rule set'})
+  if (config.headers[active_headers_group].length)
+    options.push({mode: 'all-lines-in-current-rule-set', text: 'All lines in current rule set'})
 
-      const config = {headers, debug_mode, show_comments}
-      storeConfiguration(config, true)
-      return true
-    }
-    catch(error) {
-      alert(error.message)
-      return false
-    }
+  if (!options.length) {
+    alert('Nothing to delete')
+    return
   }
+
+  const prompt_text = [
+    'Enter numer to select what items to delete:',
+    '',
+    ...options.map((item, index) => `  ${index + 1}. ${item.text}`)
+  ].join("\n")
+
+  let option_index = window.prompt(prompt_text)
+  if (!option_index) return
+
+  option_index = parseInt(option_index, 10)
+  if (isNaN(option_index)) {
+    alert('Invalid selection')
+    return
+  }
+  option_index--
+
+  if ((option_index < 0) || (option_index >= options.length)) {
+    alert('Invalid selection')
+    return
+  }
+
+  switch(options[option_index].mode) {
+    case 'all-rule-sets': {
+        config.headers       = {"default": []}
+        active_headers_group = 'default'
+        active_headers       = []
+      }
+      break
+    case 'current-rule-set': {
+        delete config.headers[active_headers_group]
+        active_headers_group = 'default'
+        active_headers       = config.headers[active_headers_group] || []
+      }
+      break
+    case 'all-lines-in-current-rule-set': {
+        config.headers[active_headers_group] = []
+        active_headers = []
+      }
+      break
+    default:
+      return
+  }
+
+  updateFormFieldValues()
+  is_edited.config = true
+}
+
+function changeRuleSet() {
+  if (askToUpdateConfig()) return
+
+  active_headers_group = document.getElementById('select_rule_set').value
+  active_headers = config.headers[active_headers_group] || []
+  updateFormFieldValues()
+}
+
+function addRuleSet() {
+  let name = window.prompt('Name for new rule set?')
+  if (!name) return
+
+  name = name.trim()
+  if (!name) return
+
+  if (config.headers[name]) {
+    alert('Rule set already exists')
+  }
+  else {
+    config.headers[name] = []
+    appendRuleSet(name)
+    is_edited.config = true
+  }
+
+  document.getElementById('select_rule_set').value = name
+  changeRuleSet()
 }
 
 /**
@@ -430,13 +602,30 @@ function deleteAllData() {
 *
 **/
 function loadConfiguration(configuration, doMerge) {
+  if (askToUpdateConfig()) return
+
   try {
-    const config = JSON.parse(configuration)
+    const new_config = JSON.parse(configuration)
+
+    if (!new_config || !new_config.headers)
+      throw 0
+
+    // migrate from old format
+    if (Array.isArray(new_config.headers)) {
+      new_config.headers = {"default": new_config.headers}
+    }
+
+    if (typeof new_config.headers !== 'object')
+      throw 0
 
     if (doMerge)
-      mergeConfiguration(config, true)
+      mergeConfiguration(new_config)
     else
-      storeConfiguration(configuration, true)
+      config = new_config
+
+    active_headers = config.headers[active_headers_group] || []
+    updateFormFieldValues()
+    is_edited.config = true
   }
   catch(error) {
     console.log(error)
@@ -444,33 +633,29 @@ function loadConfiguration(configuration, doMerge) {
   }
 }
 
-function mergeConfiguration(new_config, reloadPage) {
-  loadFromBrowserStorage(['config'], function (result) {
-    const config   = JSON.parse(result.config)
-    config.headers = config.headers.concat( new_config.headers )
-    storeConfiguration(config, reloadPage)
-  })
+function mergeConfiguration(new_config) {
+  for (let new_headers_group in new_config.headers) {
+    if (config.headers[new_headers_group]) {
+      config.headers[new_headers_group] = config.headers[new_headers_group].concat( new_config.headers[new_headers_group] )
+    }
+    else {
+      config.headers[new_headers_group] = new_config.headers[new_headers_group]
+    }
+  }
 }
 
-function storeConfiguration(config, reloadPage) {
-  if (typeof config !== 'string')
-    config = JSON.stringify(config)
-
-  storeInBrowserStorage({config}, function() {
-    if (reloadPage)
-      reloadConfigPage()
-    else
-      chrome.runtime.sendMessage('reload')
-  })
-}
-
-function reloadConfigPage() {
-  chrome.runtime.sendMessage('reload')
-
-  setTimeout(
-    function() {window.location.reload()},
-    100
-  )
+function storeConfiguration() {
+  if (is_edited.config) {
+    storeInBrowserStorage({config: JSON.stringify(config), active_headers_group}, function() {
+      chrome.runtime.sendMessage({action: 'reload'})
+      is_edited.config = false
+    })
+  }
+  else {
+    storeInBrowserStorage({active_headers_group}, function() {
+      chrome.runtime.sendMessage({action: 'change-group'})
+    })
+  }
 }
 
 /**
@@ -721,20 +906,20 @@ function selectFromCommonHeaderNames(line_number) {
 * Stop or Start modify header
 *
 **/
-function startModify() {
+function toggleStartButton() {
   if (started === 'off') {
       saveData()
       storeInBrowserStorage({started:'on'}, function() {
-        chrome.runtime.sendMessage('on')
+        chrome.runtime.sendMessage({action: 'on'})
         started = 'on'
-        document.getElementById('start_img').src = 'img/stop.png'
+        updateStartButtonImage()
       })
   }
   else {
     storeInBrowserStorage({started:'off'}, function() {
-      chrome.runtime.sendMessage('off')
+      chrome.runtime.sendMessage({action: 'off'})
       started = 'off'
-      document.getElementById('start_img').src = 'img/start.png'
+      updateStartButtonImage()
     })
   }
 }

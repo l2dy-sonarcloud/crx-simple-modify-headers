@@ -1,38 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
- *
- * @author didierfred@gmail.com
- * @version 0.4
- */
-
 "use strict";
 
 let config
 let started = 'off'
-let debug_mode = false
+let active_headers_group = 'default'
+let active_headers = []
 
 /*
 * Initialize global state
 *
 */
-loadFromBrowserStorage(['config', 'started'], function (result) {
+loadFromBrowserStorage(['config', 'started', 'active_headers_group'], function (result) {
   if (result.config === undefined) {
     loadDefaultConfiguration()
   }
   else {
-    started = result.started
-    config = JSON.parse(result.config)
-    preProcessConfig()
+    try {
+      started = result.started
+      active_headers_group = result.active_headers_group
+
+      config = JSON.parse(result.config)
+      upgradeConfig()
+
+      if (!config || !config.headers || (typeof config.headers !== 'object'))
+        throw 0
+    }
+    catch(e) {
+      loadDefaultConfiguration()
+    }
   }
 
+  preProcessConfig()
+
   if (started === 'on') {
-    addListeners()
-    chrome.browserAction.setIcon({ path: 'icons/modify-green-32.png' })
+    start(true)
   }
   else if (started !== 'off') {
     started = 'off'
-    storeInBrowserStorage({ started: 'off' })
+    storeInBrowserStorage({ started })
   }
 
   // listen for change in configuration or start/stop
@@ -42,127 +46,250 @@ loadFromBrowserStorage(['config', 'started'], function (result) {
 function loadDefaultConfiguration() {
   console.log('Load default config')
 
-  const headers = [{
-    url_contains: '^https?://httpbin\\.org/.*$',
-    action:       'add',
-    header_name:  'test-header-name-1',
-    header_value: 'test-header-value-1',
-    comment:      'test at: https://httpbin.org/headers',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'add',
-    header_name:  'test-header-name-2',
-    header_value: 'test-header-value-2',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'delete',
-    header_name:  'accept*',
-    header_value: '',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'delete',
-    header_name:  'sec-fetch-*',
-    header_value: '',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '^https?://postman-echo\\.com/.*$',
-    action:       'add',
-    header_name:  'test-header-name-3',
-    header_value: 'test-header-value-3',
-    comment:      'test at: http://postman-echo.com/get',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'add',
-    header_name:  'test-header-name-4',
-    header_value: 'test-header-value-4',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'modify',
-    header_name:  'accept-encoding',
-    header_value: 'identity',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'delete',
-    header_name:  'cookie',
-    header_value: '',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '^https?://headers\\.jsontest\\.com.*$',
-    action:       'delete',
-    header_name:  '*',
-    header_value: '',
-    comment:      'test at: http://headers.jsontest.com',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'add',
-    header_name:  'test-header-name-5',
-    header_value: 'test-header-value-5',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'add',
-    header_name:  'test-header-name-6',
-    header_value: 'test-header-value-6',
-    comment:      '',
-    apply_on:     'req',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'modify',
-    header_name:  'content-type',
-    header_value: 'text/plain',
-    comment:      '',
-    apply_on:     'res',
-    status:       'on'
-  },{
-    url_contains: '',
-    action:       'add',
-    header_name:  'content-disposition',
-    header_value: 'attachment; filename="headers.txt"',
-    comment:      '',
-    apply_on:     'res',
-    status:       'off'
-  }]
+  const headers = {
+    "default": [
+    ],
+    "allow CORS": [{
+      url_contains: '^.*$',
+      action:       'add',
+      header_name:  'access-control-allow-origin',
+      header_value: '*',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'access-control-allow-headers',
+      header_value: '*',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'access-control-allow-methods',
+      header_value: '*',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'access-control-allow-credentials',
+      header_value: 'true',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'access-control-expose-headers',
+      header_value: '*',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'access-control-max-age',
+      header_value: '600',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'sec-fetch-mode',
+      header_value: 'same-origin',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'sec-fetch-site',
+      header_value: 'same-origin',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    }],
+    "disable CSP": [{
+      url_contains: '^.*$',
+      action:       'delete',
+      header_name:  'content-security-policy',
+      header_value: '',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'content-security-policy-report-only',
+      header_value: '',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    }],
+    "examples": [{
+      url_contains: '^https?://httpbin\\.org/.*$',
+      action:       'add',
+      header_name:  'test-header-name-1',
+      header_value: 'test-header-value-1',
+      comment:      'test at: https://httpbin.org/headers',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'test-header-name-2',
+      header_value: 'test-header-value-2',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'accept*',
+      header_value: '',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'sec-fetch-*',
+      header_value: '',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '^https?://postman-echo\\.com/.*$',
+      action:       'add',
+      header_name:  'test-header-name-3',
+      header_value: 'test-header-value-3',
+      comment:      'test at: http://postman-echo.com/get',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'test-header-name-4',
+      header_value: 'test-header-value-4',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'modify',
+      header_name:  'accept-encoding',
+      header_value: 'identity',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'cookie',
+      header_value: '',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '^https?://headers\\.jsontest\\.com.*$',
+      action:       'delete',
+      header_name:  '*',
+      header_value: '',
+      comment:      'test at: http://headers.jsontest.com',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'test-header-name-5',
+      header_value: 'test-header-value-5',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'test-header-name-6',
+      header_value: 'test-header-value-6',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'text/plain',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'content-disposition',
+      header_value: 'attachment; filename="headers.txt"',
+      comment:      '',
+      apply_on:     'res',
+      status:       'off'
+    }]
+  }
 
-  config = { headers: headers, debug_mode: false, show_comments: true }
-  storeInBrowserStorage({ started, config: JSON.stringify(config) })
-  preProcessConfig()
+  config = { headers: headers, format_version: 2, debug_mode: false, show_comments: true }
+  active_headers_group = 'examples'
+  storeInBrowserStorage({ config: JSON.stringify(config), active_headers_group })
+}
+
+// migrate config from format used < v3.0.0
+function upgradeConfig() {
+  if (!config || !config.headers || !Array.isArray(config.headers))
+    return
+
+  config.headers = {"default": config.headers}
+  config.format_version = 2
+  active_headers_group = 'default'
+  storeInBrowserStorage({ config: JSON.stringify(config), active_headers_group })
 }
 
 function preProcessConfig() {
-  if (!config || !config.headers || !config.headers.length)
+  active_headers = []
+
+  if (!active_headers_group || !config.headers[active_headers_group]) {
+    active_headers_group = 'default'
+    storeInBrowserStorage({ active_headers_group })
+  }
+
+  if (!config.headers[active_headers_group] || !config.headers[active_headers_group].length)
     return
 
   let header
-  for (let i=0; i < config.headers.length; i++) {
-    header = config.headers[i]
+  let regex_ok = false
+  for (let i=0; i < config.headers[active_headers_group].length; i++) {
+    header = config.headers[active_headers_group][i]
 
-    if (header.url_contains && (typeof header.url_contains === 'string'))
-      header.url_contains = new RegExp(header.url_contains, 'i')
+    if (header.url_contains) {
+      if (typeof header.url_contains === 'string') {
+        try {
+          header.url_contains = new RegExp(header.url_contains, 'i')
+          regex_ok = true
+        }
+        catch(e) {
+          regex_ok = false
+        }
+      }
+      else if (header.url_contains instanceof RegExp) {
+        regex_ok = true
+      }
+      else {
+        header.url_contains = null
+      }
+    }
+
+    if (regex_ok)
+      active_headers.push(header)
   }
 }
 
@@ -244,7 +371,7 @@ function rewriteHttpHeaders(headers, url, apply_on) {
 
   if (config.debug_mode) log('Start modify ' + headersType + ' headers for url ' + url)
   let prev_url_contains = null
-  for (let to_modify of config.headers) {
+  for (let to_modify of active_headers) {
     // sanity check
     if (!to_modify.action || !to_modify.apply_on || !to_modify.header_name)
       continue
@@ -384,24 +511,40 @@ function rewriteResponseHeaders(details) {
 *
 **/
 function notify(message) {
-  if (message === 'reload') {
-    if (config.debug_mode) log('Reload configuration')
-    loadFromBrowserStorage(['config'], function (result) {
-      config = JSON.parse(result.config)
-      preProcessConfig()
-    })
-  }
-  else if (message === 'off') {
-    removeListeners()
-    chrome.browserAction.setIcon({ path: 'icons/modify-32.png' })
-    started = 'off'
-    if (config.debug_mode) log('Stop modifying headers')
-  }
-  else if (message === 'on') {
-    addListeners()
-    chrome.browserAction.setIcon({ path: 'icons/modify-green-32.png' })
-    started = 'on'
-    if (config.debug_mode) log('Start modifying headers')
+  if (!message || !(typeof message === 'object') || !message.action || !(typeof message.action === 'string'))
+    return
+
+  switch(message.action) {
+    case 'change-group': {
+        if (config.debug_mode) log('Change active headers group')
+        loadFromBrowserStorage(['active_headers_group'], function (result) {
+          active_headers_group = result.active_headers_group
+          preProcessConfig()
+        })
+      }
+      break
+    case 'reload': {
+        if (config.debug_mode) log('Reload configuration')
+        loadFromBrowserStorage(['config', 'active_headers_group'], function (result) {
+          try {
+            config = JSON.parse(result.config)
+            active_headers_group = result.active_headers_group
+            preProcessConfig()
+          }
+          catch(e) {
+            active_headers = []
+          }
+        })
+      }
+      break
+    case 'on': {
+        start()
+      }
+      break
+    case 'off': {
+        stop()
+      }
+      break
   }
 }
 
@@ -444,4 +587,24 @@ function addListeners() {
 function removeListeners() {
   chrome.webRequest.onBeforeSendHeaders.removeListener(rewriteRequestHeaders)
   chrome.webRequest.onHeadersReceived.removeListener(rewriteResponseHeaders)
+}
+
+function start(skip_check) {
+  if (!skip_check && (started === 'on'))
+    return
+
+  addListeners()
+  chrome.browserAction.setIcon({ path: 'icons/modify-green-32.png' })
+  started = 'on'
+  if (config.debug_mode) log('Start modifying headers')
+}
+
+function stop(skip_check) {
+  if (!skip_check && (started === 'off'))
+    return
+
+  removeListeners()
+  chrome.browserAction.setIcon({ path: 'icons/modify-32.png' })
+  started = 'off'
+  if (config.debug_mode) log('Stop modifying headers')
 }
