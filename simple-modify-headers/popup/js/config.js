@@ -653,12 +653,18 @@ function storeConfiguration() {
   if (is_edited.config) {
     storeInBrowserStorage({config: JSON.stringify(config), active_headers_group}, function() {
       chrome.runtime.sendMessage({action: 'reload'})
+
       is_edited.config = false
+      is_edited.active_headers_group = false
+      is_edited.initial_headers_group = active_headers_group
     })
   }
   else {
     storeInBrowserStorage({active_headers_group}, function() {
       chrome.runtime.sendMessage({action: 'change-group'})
+
+      is_edited.active_headers_group = false
+      is_edited.initial_headers_group = active_headers_group
     })
   }
 }
