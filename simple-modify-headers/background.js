@@ -131,6 +131,159 @@ function loadDefaultConfiguration() {
       apply_on:     'res',
       status:       'on'
     }],
+    "RawGit": [{
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*$',
+      action:       'delete',
+      header_name:  'content-security-policy',
+      header_value: '',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.htm[l]?(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'text/html; charset=utf-8',
+      comment:      'https://developer.mozilla.org/en-US/docs/Web/HTTP/MIME_types/Common_types',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.css(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'text/css; charset=utf-8',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.[m]?js(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'text/javascript; charset=utf-8',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.json(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'application/json; charset=utf-8',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.ico(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'image/vnd.microsoft.icon',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.png(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'image/png',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.jp[e]?g(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'image/jpeg',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.svg(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'image/svg+xml',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.woff[2]?(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'font-woff',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.wasm(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'application/wasm',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.pdf(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'application/pdf',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.mp3(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'audio/mpeg',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.mp4(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'video/mp4',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.ts(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'video/mp2t',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.m3u8(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'application/vnd.apple.mpegurl',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },
+    {
+      url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.mpd(?:[#\\?].*)?$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'application/dash+xml',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    }],
     "examples": [{
       url_contains: '^https?://httpbin\\.org/.*$',
       action:       'add',
