@@ -11,7 +11,7 @@ window.onload = function() {
 }
 
 window.onbeforeunload = function(e) {
-  if (is_edited.config || is_edited.form) {
+  if (is_edited.config || is_edited.active_headers_group || is_edited.form) {
     e.preventDefault()
     e.returnValue = true
     return 'Save changes before closing?'
@@ -52,6 +52,8 @@ function initConfigurationPage() {
     started = (result.started === 'on') ? 'on' : 'off'
     active_headers_group = result.active_headers_group || 'default'
     active_headers = config.headers[active_headers_group] || []
+
+    is_edited.initial_headers_group = active_headers_group
 
     updateFormFieldValues()
     updateStartButtonImage()
@@ -157,8 +159,9 @@ function initGlobalValue() {
   active_headers       = []
   line_number          = 1
 
-  is_edited.config     = false
-  is_edited.form       = false
+  is_edited.config               = false
+  is_edited.active_headers_group = false
+  is_edited.form                 = false
 }
 
 function loadFromBrowserStorage(item,callback_function) {
@@ -574,7 +577,9 @@ function changeRuleSet() {
 
   active_headers_group = document.getElementById('select_rule_set').value
   active_headers = config.headers[active_headers_group] || []
+
   updateFormFieldValues()
+  is_edited.active_headers_group = (active_headers_group !== is_edited.initial_headers_group)
 }
 
 function addRuleSet() {
