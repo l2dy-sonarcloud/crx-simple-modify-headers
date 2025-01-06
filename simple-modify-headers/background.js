@@ -4,6 +4,8 @@ let config
 let started = 'off'
 let active_headers_group = 'default'
 let active_headers = []
+let active_tabs = {}
+let active_tabs_count = 0
 
 /*
 * Initialize global state
@@ -51,6 +53,38 @@ function loadDefaultConfiguration() {
     ],
     "allow CORS": [{
       url_contains: '^.*$',
+      action:       'delete',
+      header_name:  'sec-fetch-*',
+      header_value: '',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'sec-fetch-mode',
+      header_value: 'same-origin',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'sec-fetch-site',
+      header_value: 'same-origin',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'access-control-*',
+      header_value: '',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
       action:       'add',
       header_name:  'access-control-allow-origin',
       header_value: '*',
@@ -96,22 +130,6 @@ function loadDefaultConfiguration() {
       header_value: '600',
       comment:      '',
       apply_on:     'res',
-      status:       'on'
-    },{
-      url_contains: '',
-      action:       'add',
-      header_name:  'sec-fetch-mode',
-      header_value: 'same-origin',
-      comment:      '',
-      apply_on:     'req',
-      status:       'on'
-    },{
-      url_contains: '',
-      action:       'add',
-      header_name:  'sec-fetch-site',
-      header_value: 'same-origin',
-      comment:      '',
-      apply_on:     'req',
       status:       'on'
     }],
     "disable CSP": [{
@@ -633,6 +651,8 @@ function rewriteHttpHeaders(headers, url, apply_on) {
 *
 */
 function rewriteRequestHeaders(details) {
+  if (!shouldProcessListener(details.tabId, details.initiator)) return
+
   const headers  = details.requestHeaders
   const url      = details.url
   const apply_on = 'req'
@@ -647,6 +667,8 @@ function rewriteRequestHeaders(details) {
 *
 */
 function rewriteResponseHeaders(details) {
+  if (!shouldProcessListener(details.tabId, details.initiator)) return
+
   const headers  = details.responseHeaders
   const url      = details.url
   const apply_on = 'res'
@@ -663,7 +685,7 @@ function rewriteResponseHeaders(details) {
 * if message is off : stop the modify header
 *
 **/
-function notify(message) {
+function notify(message, sender, sendResponse) {
   if (!message || !(typeof message === 'object') || !message.action || !(typeof message.action === 'string'))
     return
 
@@ -691,11 +713,27 @@ function notify(message) {
       }
       break
     case 'on': {
+        stopAllTabs()
         start()
       }
       break
     case 'off': {
         stop()
+      }
+      break
+    case 'tab-on': {
+        startTab().then(sendResponse)
+        return true
+      }
+      break
+    case 'tab-off': {
+        stopTab().then(sendResponse)
+        return true
+      }
+      break
+    case 'is-tab-on': {
+        isTabStarted().then(sendResponse)
+        return true
       }
       break
   }
@@ -761,3 +799,132 @@ function stop(skip_check) {
   started = 'off'
   if (config.debug_mode) log('Stop modifying headers')
 }
+
+async function startTab() {
+  try {
+    if (started === 'on') throw 0
+
+    const {id, url} = await getActiveTabId()
+
+    if (active_tabs[id])
+      return true
+
+    if (active_tabs_count === 0)
+      addListeners()
+
+    active_tabs[id] = url.toLowerCase()
+    active_tabs_count += 1
+
+    return true
+  }
+  catch(e) {
+    return false
+  }
+}
+
+async function stopTab(id) {
+  try {
+    if (started === 'on') throw 0
+
+    if (!id)
+      id = (await getActiveTabId()).id
+
+    if (!active_tabs[id])
+      return true
+
+    delete active_tabs[id]
+    active_tabs_count -= 1
+
+    if (active_tabs_count === 0)
+      removeListeners()
+
+    return true
+  }
+  catch(e) {
+    return false
+  }
+}
+
+async function isTabStarted() {
+  try {
+    if (started === 'on') throw 0
+
+    const {id} = await getActiveTabId()
+
+    return !!active_tabs[id]
+  }
+  catch(e) {
+    return false
+  }
+}
+
+function stopAllTabs() {
+  active_tabs = {}
+  active_tabs_count = 0
+  removeListeners()
+}
+
+function getActiveTabId() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query(
+      {active: true, lastFocusedWindow: true},
+      function(matching_tabs_array) {
+        if (matching_tabs_array && Array.isArray(matching_tabs_array) && matching_tabs_array.length) {
+          const tab = matching_tabs_array.find(tab => tab.id && (tab.id !== chrome.tabs.TAB_ID_NONE) && tab.url)
+
+          if (tab) {
+            resolve({id: String(tab.id), url: tab.url})
+            return
+          }
+        }
+        reject()
+      }
+    )
+  })
+}
+
+function shouldProcessListener(tabId, initiator) {
+  if (started === 'on') return true
+
+  tabId = (tabId === chrome.tabs.TAB_ID_NONE)
+    ? find_tabId_for_origin(initiator)
+    : String(tabId)
+
+  if (tabId && active_tabs[tabId]) return true
+
+  return false
+}
+
+function find_tabId_for_origin(origin) {
+  const tabIds = []
+
+  if (origin) {
+    origin = origin.toLowerCase()
+
+    for (let tabId in active_tabs) {
+      const url = active_tabs[tabId]
+
+      if (url.startsWith(origin))
+        tabIds.push(tabId)
+    }
+  }
+
+  return (tabIds.length === 1)
+    ? tabIds[0]
+    : null
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!tabId || !change_info?.url) return
+
+  tabId = String(tabId)
+  if (!active_tabs[tabId]) return
+
+  active_tabs[tabId] = change_info.url.toLowerCase()
+})
+
+chrome.tabs.onRemoved.addListener(tabId => {
+  stopTab(
+    String(tabId)
+  )
+})
