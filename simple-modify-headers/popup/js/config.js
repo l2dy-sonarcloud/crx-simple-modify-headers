@@ -22,7 +22,7 @@ function initConfigurationPage() {
   initGlobalValue()
 
   // load configuration from local storage
-  loadFromBrowserStorage(['config', 'started', 'active_headers_group'], function (result) {
+  loadFromBrowserStorage(['config', 'started', 'active_headers_groups'], function (result) {
     try {
       if (!result.config)
         throw 0
@@ -50,7 +50,19 @@ function initConfigurationPage() {
     }
 
     started = (result.started === 'on') ? 'on' : 'off'
-    active_headers_group = result.active_headers_group || 'default'
+    try {
+      if (!result.active_headers_groups)
+        throw 0
+
+      const active_headers_groups = JSON.parse(result.active_headers_groups)
+      if (!Array.isArray(active_headers_groups) || !active_headers_groups.length)
+        throw 0
+
+      active_headers_group = active_headers_groups[0]
+    }
+    catch(e) {
+      active_headers_group = 'default'
+    }
     active_headers = config.headers[active_headers_group] || []
 
     is_edited.initial_headers_group = active_headers_group
@@ -162,14 +174,6 @@ function initGlobalValue() {
   is_edited.config               = false
   is_edited.active_headers_group = false
   is_edited.form                 = false
-}
-
-function loadFromBrowserStorage(item,callback_function) {
-  chrome.storage.local.get(item, callback_function)
-}
-
-function storeInBrowserStorage(item,callback_function)  {
-  chrome.storage.local.set(item,callback_function)
 }
 
 function log(message) {
@@ -651,7 +655,7 @@ function mergeConfiguration(new_config) {
 
 function storeConfiguration() {
   if (is_edited.config) {
-    storeInBrowserStorage({config: JSON.stringify(config), active_headers_group}, function() {
+    storeInBrowserStorage({ config: JSON.stringify(config), active_headers_groups: JSON.stringify([active_headers_group]) }, function() {
       chrome.runtime.sendMessage({action: 'reload'})
 
       is_edited.config = false
@@ -660,7 +664,7 @@ function storeConfiguration() {
     })
   }
   else {
-    storeInBrowserStorage({active_headers_group}, function() {
+    storeInBrowserStorage({ active_headers_groups: JSON.stringify([active_headers_group]) }, function() {
       chrome.runtime.sendMessage({action: 'change-group'})
 
       is_edited.active_headers_group = false

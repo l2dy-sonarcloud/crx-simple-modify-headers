@@ -2,7 +2,7 @@
 
 let config
 let started = 'off'
-let active_headers_group = 'default'
+let active_headers_groups = ['default']
 let active_headers = []
 let active_tabs = {}
 let active_tabs_count = 0
@@ -11,14 +11,14 @@ let active_tabs_count = 0
 * Initialize global state
 *
 */
-loadFromBrowserStorage(['config', 'started', 'active_headers_group'], function (result) {
+loadFromBrowserStorage(['config', 'started', 'active_headers_groups'], function (result) {
   if (result.config === undefined) {
     loadDefaultConfiguration()
   }
   else {
     try {
       started = result.started
-      active_headers_group = result.active_headers_group
+      active_headers_groups = result.active_headers_groups
 
       config = JSON.parse(result.config)
       upgradeConfig()
@@ -31,6 +31,7 @@ loadFromBrowserStorage(['config', 'started', 'active_headers_group'], function (
     }
   }
 
+  preProcessActiveHeadersGroups()
   preProcessConfig()
 
   if (started === 'on') {
@@ -410,8 +411,8 @@ function loadDefaultConfiguration() {
   }
 
   config = { headers: headers, format_version: 2, debug_mode: false, show_comments: true }
-  active_headers_group = 'examples'
-  storeInBrowserStorage({ config: JSON.stringify(config), active_headers_group })
+  active_headers_groups = ['examples']
+  storeInBrowserStorage({ config: JSON.stringify(config), active_headers_groups: JSON.stringify(active_headers_groups) })
 }
 
 // migrate config from format used < v3.0.0
@@ -421,55 +422,92 @@ function upgradeConfig() {
 
   config.headers = {"default": config.headers}
   config.format_version = 2
-  active_headers_group = 'default'
-  storeInBrowserStorage({ config: JSON.stringify(config), active_headers_group })
+  active_headers_groups = ['default']
+  storeInBrowserStorage({ config: JSON.stringify(config), active_headers_groups: JSON.stringify(active_headers_groups) })
+}
+
+function preProcessActiveHeadersGroups() {
+  if (Array.isArray(active_headers_groups) && active_headers_groups.length)
+    return
+
+  try {
+    if (!active_headers_groups || (typeof active_headers_groups !== 'string'))
+      throw 0
+
+    active_headers_groups = JSON.parse(active_headers_groups)
+  }
+  catch(e) {
+    active_headers_groups = ['default']
+    storeInBrowserStorage({ active_headers_groups: JSON.stringify(active_headers_groups) })
+  }
 }
 
 function preProcessConfig() {
   active_headers = []
 
-  if (!active_headers_group || !config.headers[active_headers_group]) {
-    active_headers_group = 'default'
-    storeInBrowserStorage({ active_headers_group })
+  let save_active_headers_groups = filter_active_headers_groups()
+  if (!save_active_headers_groups && !active_headers_groups) {
+    active_headers_groups = ['default']
+    save_active_headers_groups = true
   }
-
-  if (!config.headers[active_headers_group] || !config.headers[active_headers_group].length)
-    return
+  if (save_active_headers_groups) {
+    storeInBrowserStorage({ active_headers_groups: JSON.stringify(active_headers_groups) })
+  }
 
   let header
-  let regex_ok = false
-  for (let i=0; i < config.headers[active_headers_group].length; i++) {
-    header = config.headers[active_headers_group][i]
+  let regex_ok
+  for (let active_headers_group of active_headers_groups) {
+    if (!config.headers[active_headers_group] || !config.headers[active_headers_group].length)
+      continue
 
-    if (header.url_contains) {
-      if (typeof header.url_contains === 'string') {
-        try {
-          header.url_contains = new RegExp(header.url_contains, 'i')
+    regex_ok = false
+
+    for (let i=0; i < config.headers[active_headers_group].length; i++) {
+      header = config.headers[active_headers_group][i]
+
+      if (header.status !== 'on')
+        continue
+
+      if (header.url_contains) {
+        if (typeof header.url_contains === 'string') {
+          try {
+            header.url_contains = new RegExp(header.url_contains, 'i')
+            regex_ok = true
+          }
+          catch(e) {
+            regex_ok = false
+          }
+        }
+        else if (header.url_contains instanceof RegExp) {
           regex_ok = true
         }
-        catch(e) {
-          regex_ok = false
+        else {
+          header.url_contains = null
         }
       }
-      else if (header.url_contains instanceof RegExp) {
-        regex_ok = true
-      }
-      else {
-        header.url_contains = null
-      }
-    }
 
-    if (regex_ok)
-      active_headers.push(header)
+      if (regex_ok)
+        active_headers.push(header)
+    }
   }
 }
 
-function loadFromBrowserStorage(item, callback_function) {
-  chrome.storage.local.get(item, callback_function)
-}
+function filter_active_headers_groups() {
+  if (!active_headers_groups || !Array.isArray(active_headers_groups) || !active_headers_groups.length) {
+    active_headers_groups = null
+    return false
+  }
+  else {
+    const all_headers_groups = Object.keys(config.headers)
+    const pre_count = active_headers_groups.length
+    active_headers_groups = active_headers_groups.filter(headers_group => all_headers_groups.includes(headers_group))
+    const post_count = active_headers_groups.length
 
-function storeInBrowserStorage(item, callback_function) {
-  chrome.storage.local.set(item, callback_function)
+    if (!active_headers_groups.length)
+      active_headers_groups = null
+
+    return (active_headers_groups && (post_count !== pre_count))
+  }
 }
 
 /*
@@ -690,20 +728,22 @@ function notify(message, sender, sendResponse) {
     return
 
   switch(message.action) {
-    case 'change-group': {
-        if (config.debug_mode) log('Change active headers group')
-        loadFromBrowserStorage(['active_headers_group'], function (result) {
-          active_headers_group = result.active_headers_group
+    case 'change-groups': {
+        if (config.debug_mode) log('Change active headers groups')
+        loadFromBrowserStorage(['active_headers_groups'], function (result) {
+          active_headers_groups = result.active_headers_groups
+          preProcessActiveHeadersGroups()
           preProcessConfig()
         })
       }
       break
     case 'reload': {
         if (config.debug_mode) log('Reload configuration')
-        loadFromBrowserStorage(['config', 'active_headers_group'], function (result) {
+        loadFromBrowserStorage(['config', 'active_headers_groups'], function (result) {
           try {
             config = JSON.parse(result.config)
-            active_headers_group = result.active_headers_group
+            active_headers_groups = result.active_headers_groups
+            preProcessActiveHeadersGroups()
             preProcessConfig()
           }
           catch(e) {
@@ -915,12 +955,12 @@ function find_tabId_for_origin(origin) {
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (!tabId || !change_info?.url) return
+  if (!tabId || !changeInfo?.url) return
 
   tabId = String(tabId)
   if (!active_tabs[tabId]) return
 
-  active_tabs[tabId] = change_info.url.toLowerCase()
+  active_tabs[tabId] = changeInfo.url.toLowerCase()
 })
 
 chrome.tabs.onRemoved.addListener(tabId => {

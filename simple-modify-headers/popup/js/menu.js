@@ -4,7 +4,7 @@ let tab_started = "off";
 window.onload = function() {
   document.getElementById('config').addEventListener('click', function(e) {start_config();});
 
-  loadFromBrowserStorage(['started', 'config', 'active_headers_group'], function(result) {
+  loadFromBrowserStorage(['started', 'config', 'active_headers_groups'], function(result) {
     started = result.started;
 
     const start_stop      = document.getElementById('start_stop');
@@ -38,25 +38,24 @@ window.onload = function() {
       for (let name in config.headers)
         appendRuleSet(select_rule_set, name)
 
-      select_rule_set.value = result.active_headers_group || 'default'
+      let active_headers_groups
+      try {
+        active_headers_groups = JSON.parse(result.active_headers_groups)
+      }
+      catch(e) {
+        active_headers_groups = ['default']
+      }
+      setSelectedValues(select_rule_set, active_headers_groups)
 
       select_rule_set.addEventListener(
         'change',
-        function (e) {changeRuleSet()}
+        function (e) {setChangeRuleSetTimer()}
       )
     }
     catch(e) {
       select_rule_set.style.display = 'none';
     }
   });
-}
-
-function loadFromBrowserStorage(item,callback_function) {
-  chrome.storage.local.get(item, callback_function);
-}
-
-function storeInBrowserStorage(item,callback_function)  {
-  chrome.storage.local.set(item,callback_function);
 }
 
 function start_modify() {
@@ -146,10 +145,55 @@ function appendRuleSet(select_rule_set, name) {
   select_rule_set.appendChild(option)
 }
 
-function changeRuleSet() {
-  const active_headers_group = document.getElementById('select_rule_set').value
+let changeRuleSetTimer = 0
 
-  storeInBrowserStorage({active_headers_group}, function() {
-    chrome.runtime.sendMessage({action: 'change-group'})
+// debounce within a 5 second period
+function setChangeRuleSetTimer() {
+  if (changeRuleSetTimer)
+    clearTimeout(changeRuleSetTimer)
+
+  changeRuleSetTimer = setTimeout(
+    function() {
+      changeRuleSetTimer = 0
+      changeRuleSet()
+    },
+    500
+  )
+}
+
+function changeRuleSet() {
+  const active_headers_groups = getSelectedValues(document.getElementById('select_rule_set'))
+
+  storeInBrowserStorage({ active_headers_groups: JSON.stringify(active_headers_groups) }, function() {
+    chrome.runtime.sendMessage({action: 'change-groups'})
   })
+}
+
+window.onbeforeunload = function(e) {
+  if (changeRuleSetTimer) {
+    e.preventDefault()
+    e.returnValue = true
+    return 'Saving changes. Please wait one second.'
+  }
+}
+
+// -------------------------------------
+// multiple HTMLSelectElement
+
+function getSelectedValues(el) {
+  return [...el.selectedOptions].map(el => el.value)
+}
+
+function setSelectedValues(el, vals) {
+  clearSelectedValues(el)
+
+  for (let option of el.options) {
+    if (!option.disabled && vals.includes(option.value)) {
+      option.selected = true
+    }
+  }
+}
+
+function clearSelectedValues(el) {
+  el.selectedIndex = -1
 }
