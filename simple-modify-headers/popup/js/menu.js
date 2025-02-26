@@ -11,24 +11,6 @@ window.onload = function() {
     const start_stop_tab  = document.getElementById('start_stop_tab');
     const select_rule_set = document.getElementById('select_rule_set');
 
-    if (started === "on") {
-      start_stop.value = "Stop";
-
-      start_stop_tab.parentElement.style.display = 'none'
-      start_stop.parentElement.setAttribute('colspan', '2')
-    }
-    else {
-      chrome.runtime.sendMessage({action: 'is-tab-on'}, function(response) {
-        if (response === true) {
-          tab_started = "on";
-          start_stop_tab.value = "Stop Tab";
-        }
-      });
-    }
-
-    start_stop.addEventListener('click', function(e) {start_modify();});
-    start_stop_tab.addEventListener('click', function(e) {start_tab_modify();});
-
     try {
       if (!result.config) throw 0
 
@@ -38,41 +20,52 @@ window.onload = function() {
       for (let name in config.headers)
         appendRuleSet(select_rule_set, name)
 
-      let active_headers_groups
-      try {
-        active_headers_groups = JSON.parse(result.active_headers_groups)
-      }
-      catch(e) {
-        active_headers_groups = ['default']
-      }
-      setSelectedValues(select_rule_set, active_headers_groups)
-
-      select_rule_set.addEventListener(
-        'change',
-        function (e) {setChangeRuleSetTimer()}
-      )
+      selectRuleSet(select_rule_set, result.active_headers_groups)
     }
     catch(e) {
       select_rule_set.style.display = 'none';
     }
-  });
-}
 
-function start_modify() {
-  const start_stop     = document.getElementById('start_stop');
-  const start_stop_tab = document.getElementById('start_stop_tab');
-
-  if (started === "off") {
-    storeInBrowserStorage({started: 'on'}, function() {
-      chrome.runtime.sendMessage({action: 'on'});
-      started = "on";
+    if (started === "on") {
       start_stop.value = "Stop";
 
       start_stop_tab.parentElement.style.display = 'none'
       start_stop.parentElement.setAttribute('colspan', '2')
+    }
+    else {
+      chrome.runtime.sendMessage({action: 'is-tab-on'}, function(response) {
+        if (response) {
+          tab_started = "on";
+          start_stop_tab.value = "Stop Tab";
 
-      // if exists reload config tab , to get the start/stop information correct
-      chrome.tabs.query({currentWindow: true}, reloadConfigTab);
+          selectRuleSet(select_rule_set, response)
+        }
+      });
+    }
+
+    start_stop.addEventListener('click', function(e) {onclick_start_stop();});
+    start_stop_tab.addEventListener('click', function(e) {onclick_start_stop_tab();});
+    select_rule_set.addEventListener('change', function (e) {onchange_select_rule_set();});
+  });
+}
+
+function onclick_start_stop() {
+  const start_stop     = document.getElementById('start_stop');
+  const start_stop_tab = document.getElementById('start_stop_tab');
+
+  if (started === "off") {
+    changeGlobalRuleSet(function() {
+      storeInBrowserStorage({started: 'on'}, function() {
+        chrome.runtime.sendMessage({action: 'on'});
+        started = "on";
+        start_stop.value = "Stop";
+
+        start_stop_tab.parentElement.style.display = 'none'
+        start_stop.parentElement.setAttribute('colspan', '2')
+
+        // if exists reload config tab , to get the start/stop information correct
+        chrome.tabs.query({currentWindow: true}, reloadConfigTab);
+      });
     });
   }
   else {
@@ -90,11 +83,11 @@ function start_modify() {
   }
 }
 
-function start_tab_modify() {
+function onclick_start_stop_tab() {
   const start_stop_tab = document.getElementById('start_stop_tab');
 
   if (tab_started === "off") {
-    chrome.runtime.sendMessage({action: 'tab-on'}, function(response) {
+    changeTabRuleSet(false, function(response) {
       if (response !== true) return
 
       tab_started = "on";
@@ -108,6 +101,12 @@ function start_tab_modify() {
       tab_started = "off";
       start_stop_tab.value = "Start Tab";
     });
+  }
+}
+
+function onchange_select_rule_set() {
+  if ((started === "on") || (tab_started === "on")) {
+    setChangeRuleSetTimer()
   }
 }
 
@@ -145,6 +144,20 @@ function appendRuleSet(select_rule_set, name) {
   select_rule_set.appendChild(option)
 }
 
+function selectRuleSet(select_rule_set, active_headers_groups) {
+  if (typeof active_headers_groups === 'string') {
+    try {
+      active_headers_groups = JSON.parse(active_headers_groups)
+    }
+    catch(e) {}
+  }
+  if (!Array.isArray(active_headers_groups) || !active_headers_groups.length) {
+    active_headers_groups = ['default']
+  }
+
+  setSelectedValues(select_rule_set, active_headers_groups)
+}
+
 let changeRuleSetTimer = 0
 
 // debounce within a 5 second period
@@ -162,10 +175,37 @@ function setChangeRuleSetTimer() {
 }
 
 function changeRuleSet() {
+  if (started === "on") {
+    changeGlobalRuleSet()
+  }
+  else if (tab_started === "on") {
+    changeTabRuleSet(true)
+  }
+}
+
+function changeGlobalRuleSet(callback) {
   const active_headers_groups = getSelectedValues(document.getElementById('select_rule_set'))
 
   storeInBrowserStorage({ active_headers_groups: JSON.stringify(active_headers_groups) }, function() {
     chrome.runtime.sendMessage({action: 'change-groups'})
+
+    if (typeof callback === 'function') {
+      callback()
+    }
+  })
+}
+
+function changeTabRuleSet(perform_update, callback) {
+  const active_tab_headers_groups = getSelectedValues(document.getElementById('select_rule_set'))
+
+  storeInBrowserStorage({ active_tab_headers_groups: JSON.stringify(active_tab_headers_groups) }, function() {
+    const action = !!perform_update ? 'tab-update' : 'tab-on';
+
+    chrome.runtime.sendMessage({action}, function(response) {
+      if (typeof callback === 'function') {
+        callback(response)
+      }
+    })
   })
 }
 

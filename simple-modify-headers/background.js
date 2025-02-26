@@ -150,6 +150,40 @@ function loadDefaultConfiguration() {
       apply_on:     'res',
       status:       'on'
     }],
+    "open as text": [{
+      url_contains: '^.*(?:\\.(?:csv|srt|vtt|webvtt|m3u8|mpd)(?:[#\\?].*)?|#open-as-text)$',
+      action:       'modify',
+      header_name:  'content-type',
+      header_value: 'text/plain; charset=utf-8',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'content-disposition',
+      header_value: '',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
+    }],
+    "send as XHR": [{
+      url_contains: '^.*$',
+      action:       'delete',
+      header_name:  'x-requested-with',
+      header_value: '',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    },{
+      url_contains: '',
+      action:       'add',
+      header_name:  'x-requested-with',
+      header_value: 'XMLHttpRequest',
+      comment:      '',
+      apply_on:     'req',
+      status:       'on'
+    }],
     "RawGit": [{
       url_contains: '^https://raw\\.githubusercontent\\.com/.*$',
       action:       'delete',
@@ -427,43 +461,85 @@ function upgradeConfig() {
 }
 
 function preProcessActiveHeadersGroups() {
-  if (Array.isArray(active_headers_groups) && active_headers_groups.length)
-    return
+  active_headers_groups = normalize_headers_groups(active_headers_groups)
 
-  try {
-    if (!active_headers_groups || (typeof active_headers_groups !== 'string'))
-      throw 0
-
-    active_headers_groups = JSON.parse(active_headers_groups)
-  }
-  catch(e) {
+  if (!active_headers_groups) {
     active_headers_groups = ['default']
     storeInBrowserStorage({ active_headers_groups: JSON.stringify(active_headers_groups) })
   }
 }
 
-function preProcessConfig() {
-  active_headers = []
+function normalize_headers_groups(headers_groups) {
+  if (Array.isArray(headers_groups) && headers_groups.length)
+    return headers_groups
 
-  let save_active_headers_groups = filter_active_headers_groups()
-  if (!save_active_headers_groups && !active_headers_groups) {
-    active_headers_groups = ['default']
-    save_active_headers_groups = true
+  try {
+    if (!headers_groups || (typeof headers_groups !== 'string'))
+      throw 0
+
+    headers_groups = JSON.parse(headers_groups)
+
+    if (!Array.isArray(headers_groups) || !headers_groups.length)
+      throw 0
   }
-  if (save_active_headers_groups) {
+  catch(e) {
+    headers_groups = null
+  }
+  return headers_groups
+}
+
+function preProcessConfig() {
+  const result = filter_headers_groups(active_headers_groups)
+
+  active_headers_groups = result.headers_groups
+  let dirty = result.dirty
+
+  if (!dirty && !active_headers_groups) {
+    active_headers_groups = ['default']
+    dirty = true
+  }
+  if (dirty) {
     storeInBrowserStorage({ active_headers_groups: JSON.stringify(active_headers_groups) })
   }
 
+  active_headers = get_combined_headers(active_headers_groups)
+}
+
+function filter_headers_groups(headers_groups) {
+  let dirty
+
+  if (!headers_groups || !Array.isArray(headers_groups) || !headers_groups.length) {
+    headers_groups = null
+    dirty = false
+  }
+  else {
+    const all_headers_groups = Object.keys(config.headers)
+    const pre_count = headers_groups.length
+    headers_groups = headers_groups.filter(headers_group => all_headers_groups.includes(headers_group))
+    const post_count = headers_groups.length
+
+    if (!headers_groups.length)
+      headers_groups = null
+
+    dirty = headers_groups && (post_count !== pre_count)
+  }
+
+  return {headers_groups, dirty}
+}
+
+function get_combined_headers(headers_groups) {
+  const combined_headers = []
+
   let header
   let regex_ok
-  for (let active_headers_group of active_headers_groups) {
-    if (!config.headers[active_headers_group] || !config.headers[active_headers_group].length)
+  for (let headers_group of headers_groups) {
+    if (!config.headers[headers_group] || !config.headers[headers_group].length)
       continue
 
     regex_ok = false
 
-    for (let i=0; i < config.headers[active_headers_group].length; i++) {
-      header = config.headers[active_headers_group][i]
+    for (let i=0; i < config.headers[headers_group].length; i++) {
+      header = config.headers[headers_group][i]
 
       if (header.status !== 'on')
         continue
@@ -487,27 +563,11 @@ function preProcessConfig() {
       }
 
       if (regex_ok)
-        active_headers.push(header)
+        combined_headers.push(header)
     }
   }
-}
 
-function filter_active_headers_groups() {
-  if (!active_headers_groups || !Array.isArray(active_headers_groups) || !active_headers_groups.length) {
-    active_headers_groups = null
-    return false
-  }
-  else {
-    const all_headers_groups = Object.keys(config.headers)
-    const pre_count = active_headers_groups.length
-    active_headers_groups = active_headers_groups.filter(headers_group => all_headers_groups.includes(headers_group))
-    const post_count = active_headers_groups.length
-
-    if (!active_headers_groups.length)
-      active_headers_groups = null
-
-    return (active_headers_groups && (post_count !== pre_count))
-  }
+  return combined_headers
 }
 
 /*
@@ -575,12 +635,12 @@ function log(message) {
 * Rewrite HTTP headers (add, modify, or delete)
 *
 */
-function rewriteHttpHeaders(headers, url, apply_on) {
+function rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers) {
   const headersType = (apply_on === 'req') ? 'request' : 'response'
 
   if (config.debug_mode) log('Start modify ' + headersType + ' headers for url ' + url)
   let prev_url_contains = null
-  for (let to_modify of active_headers) {
+  for (let to_modify of active_rewrite_headers) {
     // sanity check
     if (!to_modify.action || !to_modify.apply_on || !to_modify.header_name)
       continue
@@ -689,13 +749,14 @@ function rewriteHttpHeaders(headers, url, apply_on) {
 *
 */
 function rewriteRequestHeaders(details) {
-  if (!shouldProcessListener(details.tabId, details.initiator)) return
+  const active_rewrite_headers = get_active_rewrite_headers(details.tabId, details.initiator)
+  if (!active_rewrite_headers) return
 
   const headers  = details.requestHeaders
   const url      = details.url
   const apply_on = 'req'
 
-  rewriteHttpHeaders(headers, url, apply_on)
+  rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers)
 
   return { requestHeaders: headers }
 }
@@ -705,13 +766,14 @@ function rewriteRequestHeaders(details) {
 *
 */
 function rewriteResponseHeaders(details) {
-  if (!shouldProcessListener(details.tabId, details.initiator)) return
+  const active_rewrite_headers = get_active_rewrite_headers(details.tabId, details.initiator)
+  if (!active_rewrite_headers) return
 
   const headers  = details.responseHeaders
   const url      = details.url
   const apply_on = 'res'
 
-  rewriteHttpHeaders(headers, url, apply_on)
+  rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers)
 
   return { responseHeaders: headers }
 }
@@ -761,8 +823,15 @@ function notify(message, sender, sendResponse) {
         stop()
       }
       break
-    case 'tab-on': {
-        startTab().then(sendResponse)
+    case 'tab-on':
+    case 'tab-update': {
+        loadFromBrowserStorage(['active_tab_headers_groups'], function (result) {
+          const active_tab_headers_groups = normalize_headers_groups(result.active_tab_headers_groups)
+          const perform_update = (message.action === 'tab-update')
+
+          startTab(active_tab_headers_groups, perform_update).then(sendResponse)
+          storeInBrowserStorage({ 'active_tab_headers_groups': '[]' })
+        })
         return true
       }
       break
@@ -840,19 +909,27 @@ function stop(skip_check) {
   if (config.debug_mode) log('Stop modifying headers')
 }
 
-async function startTab() {
+async function startTab(active_tab_headers_groups, perform_update) {
   try {
     if (started === 'on') throw 0
+    if (!active_tab_headers_groups) throw 0
 
     const {id, url} = await getActiveTabId()
 
-    if (active_tabs[id])
+    if (active_tabs[id] && !perform_update)
       return true
+
+    const active_tab_headers = get_combined_headers(active_tab_headers_groups)
+    if (!active_tab_headers.length) throw 0
 
     if (active_tabs_count === 0)
       addListeners()
 
-    active_tabs[id] = url.toLowerCase()
+    active_tabs[id] = {
+      url: url.toLowerCase(),
+      active_headers_groups: active_tab_headers_groups,
+      active_headers: active_tab_headers
+    }
     active_tabs_count += 1
 
     return true
@@ -891,7 +968,9 @@ async function isTabStarted() {
 
     const {id} = await getActiveTabId()
 
-    return !!active_tabs[id]
+    if (!active_tabs[id]) throw 0
+
+    return JSON.stringify(active_tabs[id].active_headers_groups)
   }
   catch(e) {
     return false
@@ -923,16 +1002,20 @@ function getActiveTabId() {
   })
 }
 
-function shouldProcessListener(tabId, initiator) {
-  if (started === 'on') return true
+function get_active_rewrite_headers(tabId, initiator) {
+  if (started === 'on') return getNonEmptyArray(active_headers)
 
   tabId = (tabId === chrome.tabs.TAB_ID_NONE)
     ? find_tabId_for_origin(initiator)
     : String(tabId)
 
-  if (tabId && active_tabs[tabId]) return true
+  if (tabId && active_tabs[tabId]) return getNonEmptyArray(active_tabs[tabId].active_headers)
 
-  return false
+  return null
+}
+
+function getNonEmptyArray(value, default_value = null) {
+  return (Array.isArray(value) && !!value.length) ? value : default_value
 }
 
 function find_tabId_for_origin(origin) {
@@ -942,7 +1025,7 @@ function find_tabId_for_origin(origin) {
     origin = origin.toLowerCase()
 
     for (let tabId in active_tabs) {
-      const url = active_tabs[tabId]
+      const {url} = active_tabs[tabId]
 
       if (url.startsWith(origin))
         tabIds.push(tabId)
@@ -960,7 +1043,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   tabId = String(tabId)
   if (!active_tabs[tabId]) return
 
-  active_tabs[tabId] = changeInfo.url.toLowerCase()
+  active_tabs[tabId].url = changeInfo.url.toLowerCase()
 })
 
 chrome.tabs.onRemoved.addListener(tabId => {
