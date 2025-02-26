@@ -654,7 +654,7 @@ function rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers) {
           if (header.name.toLowerCase() === header_name_lc) {
             if (config.debug_mode) log('Modify ' + headersType + ' header :  name= ' + header.name + ',old value=' + header.value + ',new value=' + to_modify.header_value + ' for url ' + url)
             header.value = to_modify.header_value
-            modify_count++
+            modify_count += 1
           }
         }
       }
@@ -924,21 +924,26 @@ async function startTab(active_tab_headers_groups, perform_update) {
 
     const {id, url} = await getActiveTabId()
 
-    if (active_tabs[id] && !perform_update)
+    if (!!active_tabs[id] && !perform_update)
       return true
+
+    if (!active_tabs[id] && perform_update) throw 0
 
     const active_tab_headers = get_combined_headers(active_tab_headers_groups)
     if (!active_tab_headers.length) throw 0
-
-    if (active_tabs_count === 0)
-      addListeners()
 
     active_tabs[id] = {
       url: url.toLowerCase(),
       active_headers_groups: active_tab_headers_groups,
       active_headers: active_tab_headers
     }
-    active_tabs_count += 1
+
+    if (!perform_update) {
+      if (active_tabs_count === 0)
+        addListeners()
+
+      active_tabs_count += 1
+    }
 
     return true
   }
