@@ -226,6 +226,7 @@ function appendLine(url_contains,action,header_name,header_value,comment,apply_o
       <select class="form-control" id="select_action${line_number}"> disable="false">
         <option value="add">Add</option>
         <option value="modify">Modify</option>
+        <option value="add_or_modify">Add or Modify</option>
         <option value="cookie_add_or_modify">Add or Modify Cookie</option>
         <option value="delete">Delete</option>
         <option value="cookie_delete">Delete Cookie</option>

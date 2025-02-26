@@ -152,7 +152,7 @@ function loadDefaultConfiguration() {
     }],
     "open as text": [{
       url_contains: '^.*(?:\\.(?:csv|srt|vtt|webvtt|m3u8|mpd)(?:[#\\?].*)?|#open-as-text)$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'text/plain; charset=utf-8',
       comment:      '',
@@ -169,15 +169,7 @@ function loadDefaultConfiguration() {
     }],
     "send as XHR": [{
       url_contains: '^.*$',
-      action:       'delete',
-      header_name:  'x-requested-with',
-      header_value: '',
-      comment:      '',
-      apply_on:     'req',
-      status:       'on'
-    },{
-      url_contains: '',
-      action:       'add',
+      action:       'add_or_modify',
       header_name:  'x-requested-with',
       header_value: 'XMLHttpRequest',
       comment:      '',
@@ -195,7 +187,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.htm[l]?(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'text/html; charset=utf-8',
       comment:      'https://developer.mozilla.org/en-US/docs/Web/HTTP/MIME_types/Common_types',
@@ -204,7 +196,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.css(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'text/css; charset=utf-8',
       comment:      '',
@@ -213,7 +205,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.[m]?js(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'text/javascript; charset=utf-8',
       comment:      '',
@@ -222,7 +214,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.json(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'application/json; charset=utf-8',
       comment:      '',
@@ -231,7 +223,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.ico(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'image/vnd.microsoft.icon',
       comment:      '',
@@ -240,7 +232,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.png(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'image/png',
       comment:      '',
@@ -249,7 +241,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.jp[e]?g(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'image/jpeg',
       comment:      '',
@@ -258,7 +250,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.svg(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'image/svg+xml',
       comment:      '',
@@ -267,7 +259,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.woff[2]?(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'font-woff',
       comment:      '',
@@ -276,7 +268,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.wasm(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'application/wasm',
       comment:      '',
@@ -285,7 +277,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.pdf(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'application/pdf',
       comment:      '',
@@ -294,7 +286,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.mp3(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'audio/mpeg',
       comment:      '',
@@ -303,7 +295,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.mp4(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'video/mp4',
       comment:      '',
@@ -312,7 +304,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.ts(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'video/mp2t',
       comment:      '',
@@ -321,7 +313,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.m3u8(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'application/vnd.apple.mpegurl',
       comment:      '',
@@ -330,7 +322,7 @@ function loadDefaultConfiguration() {
     },
     {
       url_contains: '^https://raw\\.githubusercontent\\.com/.*\\.mpd(?:[#\\?].*)?$',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'application/dash+xml',
       comment:      '',
@@ -387,7 +379,7 @@ function loadDefaultConfiguration() {
       status:       'on'
     },{
       url_contains: '',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'accept-encoding',
       header_value: 'identity',
       comment:      '',
@@ -427,7 +419,7 @@ function loadDefaultConfiguration() {
       status:       'on'
     },{
       url_contains: '',
-      action:       'modify',
+      action:       'add_or_modify',
       header_name:  'content-type',
       header_value: 'text/plain',
       comment:      '',
@@ -652,19 +644,33 @@ function rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers) {
     const header_name_lc_pre = header_name_lc.slice(0, -1)
 
     if ((to_modify.status === 'on') && (to_modify.apply_on === apply_on) && prev_url_contains && prev_url_contains.test(url)) {
-      if (to_modify.action === 'add') {
-        if (config.debug_mode) log('Add ' + headersType + ' header : name=' + to_modify.header_name + ',value=' + to_modify.header_value + ' for url ' + url)
-        const new_header = { name: to_modify.header_name, value: to_modify.header_value }
-        headers.push(new_header)
-      }
-      else if (to_modify.action === 'modify') {
+      let modify_count = 0
+
+      if (
+        (to_modify.action === 'modify') ||
+        (to_modify.action === "add_or_modify")
+      ) {
         for (let header of headers) {
           if (header.name.toLowerCase() === header_name_lc) {
             if (config.debug_mode) log('Modify ' + headersType + ' header :  name= ' + header.name + ',old value=' + header.value + ',new value=' + to_modify.header_value + ' for url ' + url)
             header.value = to_modify.header_value
+            modify_count++
           }
         }
       }
+
+      if (
+        (to_modify.action === 'add') ||
+        (
+          (to_modify.action === "add_or_modify") &&
+          (modify_count === 0)
+        )
+      ) {
+        if (config.debug_mode) log('Add ' + headersType + ' header : name=' + to_modify.header_name + ',value=' + to_modify.header_value + ' for url ' + url)
+        const new_header = { name: to_modify.header_name, value: to_modify.header_value }
+        headers.push(new_header)
+      }
+
       else if (to_modify.action === 'delete') {
         for (let i = (headers.length - 1); i >= 0; i--) {
           if (header_name_lc_end === '*') {
@@ -683,6 +689,7 @@ function rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers) {
           }
         }
       }
+
       else if (to_modify.action === "cookie_add_or_modify") {
         if (apply_on === 'req') {
           let header_cookie = headers.find(header => header.name.toLowerCase() === "cookie");
@@ -713,6 +720,7 @@ function rewriteHttpHeaders(headers, url, apply_on, active_rewrite_headers) {
           }
         }
       }
+
       else if (to_modify.action === "cookie_delete") {
         if (apply_on === 'req') {
           let header_cookie = headers.find(header => header.name.toLowerCase() === "cookie");
