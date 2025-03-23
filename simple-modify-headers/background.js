@@ -6,6 +6,7 @@ let active_headers_groups = ['default']
 let active_headers = []
 let active_tabs = {}
 let active_tabs_count = 0
+let default_icon_color = 'black'
 
 /*
 * Initialize global state
@@ -853,6 +854,15 @@ function notify(message, sender, sendResponse) {
         return true
       }
       break
+    case 'change-default-icon': {
+        if (message.color && (message.color !== default_icon_color)) {
+          default_icon_color = message.color
+
+          if (started !== 'on')
+            chrome.browserAction.setIcon({ path: getIconPath(default_icon_color) })
+        }
+      }
+      break
   }
 }
 
@@ -902,7 +912,7 @@ function start(skip_check) {
     return
 
   addListeners()
-  chrome.browserAction.setIcon({ path: 'icons/modify-green-32.png' })
+  chrome.browserAction.setIcon({ path: getIconPath('green') })
   started = 'on'
   if (config.debug_mode) log('Start modifying headers')
 }
@@ -912,9 +922,16 @@ function stop(skip_check) {
     return
 
   removeListeners()
-  chrome.browserAction.setIcon({ path: 'icons/modify-32.png' })
+  chrome.browserAction.setIcon({ path: getIconPath(default_icon_color) })
   started = 'off'
   if (config.debug_mode) log('Stop modifying headers')
+}
+
+function getIconPath(color) {
+  return {
+    "32": `icons/modify-32-${color}.png`,
+    "48": `icons/modify-48-${color}.png`
+  }
 }
 
 async function startTab(active_tab_headers_groups, perform_update) {

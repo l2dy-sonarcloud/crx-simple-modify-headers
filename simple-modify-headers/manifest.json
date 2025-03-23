@@ -4,7 +4,8 @@
   "version": "6.1.1",
   "manifest_version": 2,
   "icons": {
-    "48": "icons/modify-48.png"
+    "32": "icons/modify-32-black.png",
+    "48": "icons/modify-48-black.png"
   },
   "background": {
     "scripts": [
@@ -13,10 +14,27 @@
     ]
   },
   "browser_action": {
-    "default_icon": "icons/modify-32.png",
+    "default_icon": {
+      "32": "icons/modify-32-black.png",
+      "48": "icons/modify-48-black.png"
+    },
     "default_title": "Simple Modify Headers",
-    "default_popup": "popup/menu.html"
+    "default_popup": "popup/menu.html",
+    "theme_icons": [{
+      "dark":  "icons/modify-32-black.png",
+      "light": "icons/modify-32-white.png",
+      "size":  32
+    }, {
+      "dark":  "icons/modify-48-black.png",
+      "light": "icons/modify-48-white.png",
+      "size":  48
+    }]
   },
+  "content_scripts": [{
+    "js": ["icon.js"],
+    "matches": ["<all_urls>"],
+    "match_about_blank": true
+  }],
   "permissions": [
     "activeTab",
     "storage",
