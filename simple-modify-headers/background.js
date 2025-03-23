@@ -177,6 +177,15 @@ function loadDefaultConfiguration() {
       apply_on:     'req',
       status:       'on'
     }],
+    "UserAgent: Chrome 132, Win10": [{
+      url_contains: '^.*$',
+      action:       'add_or_modify',
+      header_name:  'user-agent',
+      header_value: 'Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6788.76 Safari/537.36',
+      comment:      'test at: https://httpbin.org/headers',
+      apply_on:     'req',
+      status:       'on'
+    }],
     "RawGit": [{
       url_contains: '^https://raw\\.githubusercontent\\.com/.*$',
       action:       'delete',
