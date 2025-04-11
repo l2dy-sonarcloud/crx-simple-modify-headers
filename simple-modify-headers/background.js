@@ -150,6 +150,14 @@ function loadDefaultConfiguration() {
       comment:      '',
       apply_on:     'res',
       status:       'on'
+    },{
+      url_contains: '',
+      action:       'delete',
+      header_name:  'x-frame-options',
+      header_value: '',
+      comment:      '',
+      apply_on:     'res',
+      status:       'on'
     }],
     "open as text": [{
       url_contains: '^.*(?:\\.(?:csv|srt|vtt|webvtt|m3u8|mpd)(?:[#\\?].*)?|#open-as-text)$',
